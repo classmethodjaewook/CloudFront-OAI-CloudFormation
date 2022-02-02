@@ -18,7 +18,7 @@ Metadata:
         default: "Enter ACM SSL"
 
 # ------------------------------------------------------------#
-# Input Parameters
+# Parameters
 # ------------------------------------------------------------# 
 Parameters:
   BucketName:
