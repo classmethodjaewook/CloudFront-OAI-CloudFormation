@@ -1,0 +1,95 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: 
+  CloudFront OAI Setting
+
+Metadata:
+  "AWS::CloudFormation::Interface":
+    ParameterGroups:
+      - Label: 
+          default: "S3, ACM Setting"
+        Parameters: 
+          - BucketName
+          - ACMSSL
+
+    ParameterLabels: 
+      BucketName: 
+        default: "Enter the name of the S3 bucket"
+      ACMSSL: 
+        default: "Enter ACM SSL"
+
+# ------------------------------------------------------------#
+# Input Parameters
+# ------------------------------------------------------------# 
+Parameters:
+  BucketName:
+    Type: String
+    Default: "S3 Bucket Name"
+
+  ACMSSL:
+    Type: String
+    Default: "ACM Identifier"
+
+Resources:
+# ------------------------------------------------------------#
+#  S3 Bucket
+# ------------------------------------------------------------#        
+# Bucket
+  Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Ref BucketName
+      AccessControl: Private
+      BucketEncryption: 
+        ServerSideEncryptionConfiguration: 
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  BucketPolicy:
+    Type: "AWS::S3::BucketPolicy"
+    Properties:
+      Bucket: !Ref Bucket
+      PolicyDocument:
+        Statement:
+        - Action: "s3:GetObject"
+          Effect: Allow
+          Resource: !Sub "arn:aws:s3:::${Bucket}/*"
+          Principal:
+            CanonicalUser: !GetAtt CloudFrontOriginAccessIdentity.S3CanonicalUserId
+# ------------------------------------------------------------#
+#  CloudFront
+# ------------------------------------------------------------#  
+  CloudFrontOriginAccessIdentity:
+    Type: "AWS::CloudFront::CloudFrontOriginAccessIdentity"
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub "access-identity-${Bucket}"
+  CloudFrontDistribution:
+    Type: "AWS::CloudFront::Distribution"
+    Properties:
+      DistributionConfig:
+        Origins:
+        - DomainName: !GetAtt Bucket.RegionalDomainName
+          Id: !Sub "S3origin-${BucketName}"
+          S3OriginConfig:
+            OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}"
+        DefaultCacheBehavior:
+          TargetOriginId: !Sub "S3origin-${BucketName}"
+          ViewerProtocolPolicy: allow-all
+          AllowedMethods:
+          - GET
+          - HEAD
+          Compress: true
+          ForwardedValues:
+            Cookies:
+              Forward: none
+            QueryString: false
+        ViewerCertificate:
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+          AcmCertificateArn: !Sub "arn:aws:acm:us-east-1:${AWS::AccountId}:certificate/${ACMSSL}"
+        HttpVersion: http2
+        Enabled: true
